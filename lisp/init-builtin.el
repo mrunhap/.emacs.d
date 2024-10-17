@@ -43,31 +43,27 @@
 (defvar after-load-theme-hook nil
   "Hooks run after `load-theme'.")
 
-;;; Disable stupid things
+;;; disable stupid things
 
 ;; Reduce *Message* noise at startup. An empty scratch buffer (or the
 ;; dashboard) is more than enough, and faster to display.
-(setq inhibit-startup-screen t
-      inhibit-startup-echo-area-message user-login-name)
-(setq initial-buffer-choice nil
+(setq inhibit-startup-message t
+      inhibit-startup-screen t
+      inhibit-startup-echo-area-message user-login-name
       inhibit-startup-buffer-menu t
-      inhibit-x-resources t)
+      inhibit-x-resources t
+      inhibit-default-init t)
+(setq initial-buffer-choice nil
+      initial-major-mode 'fundamental-mode
+      server-client-instructions nil
+      suggest-key-bindings nil)
 
 ;; Remove "For information about GNU Emacs..." message at startup
 (fset #'display-startup-echo-area-message #'ignore)
 
-;; Shave seconds off startup time by starting the scratch buffer in
-;; `fundamental-mode'
-(setq initial-major-mode 'fundamental-mode
-      initial-scratch-message nil)
-
 ;; Suppress GUI features and more
 (setq use-file-dialog nil
-      use-dialog-box nil
-      suggest-key-bindings nil
-      inhibit-default-init t
-      inhibit-startup-message t
-      server-client-instructions nil)
+      use-dialog-box nil)
 
 ;; No annoying bell
 (setq ring-bell-function 'ignore)
@@ -82,7 +78,13 @@
 (setq y-or-n-p-use-read-key t
       read-char-choice-use-read-key t)
 
-;;; Modern editor config
+(keymap-global-unset "C-h h")
+(keymap-global-unset "M-z")
+(when (display-graphic-p)
+  (global-unset-key (kbd "C-z"))
+  (global-unset-key (kbd "C-x C-z")))
+
+;;; modern editor config
 
 ;; Contrary to what many Emacs users have in their configs, you don't need
 ;; more than this to make UTF-8 the default coding system:
@@ -99,14 +101,6 @@
       x-gtk-use-native-input t
       x-gtk-resize-child-frames 'resize-mode
       x-underline-at-descent-line t)
-
-;; With GPG 2.1+, this forces gpg-agent to use the Emacs minibuffer to prompt
-;; for the key passphrase.
-(setq epg-pinentry-mode 'loopback)
-
-;; Improve display
-(setq display-raw-bytes-as-hex t
-      redisplay-skip-fontification-on-input t)
 
 ;; Dont move points out of eyes
 (setq mouse-yank-at-point t)
@@ -130,10 +124,6 @@
 ;; Enable the disabled dired commands
 (put 'dired-find-alternate-file 'disabled nil)
 
-;; Enable the disabled `list-timers', `list-threads' commands
-(put 'list-timers 'disabled nil)
-(put 'list-threads 'disabled nil)
-
 ;; No Fcitx5 in Emacs PGTK build.
 (setq pgtk-use-im-context-on-new-connection nil)
 
@@ -142,8 +132,7 @@
 
 ;; Needed by `webpaste'
 (setq browse-url-generic-program
-      (or (executable-find "firefox")
-          (when (eq system-type 'darwin) "open")
+      (or (when (eq system-type 'darwin) "open")
           (when (eq system-type 'gnu/linux) "xdg-open")))
 
 ;; Buffer manager
@@ -164,11 +153,9 @@
 ;; Echo current unfinished command immediately.
 (setq echo-keystrokes 0.1)
 
-(defun my/init-func ()
-  (context-menu-mode 1)
-  (global-auto-revert-mode 1)
-  (global-goto-address-mode 1))
-(add-hook 'after-init-hook #'my/init-func)
+(add-hook 'after-init-hook #'context-menu-mode)
+(add-hook 'after-init-hook #'global-auto-revert-mode)
+(add-hook 'after-init-hook #'global-goto-address-mode)
 (add-hook 'after-save-hook #'delete-trailing-whitespace)
 
 (setq outline-minor-mode-cycle t
@@ -183,13 +170,11 @@
 
 (setq display-line-numbers-width 3)
 
-(keymap-global-unset "C-h h")
-(keymap-global-unset "M-z")
-(when (display-graphic-p)
-  (global-unset-key (kbd "C-z"))
-  (global-unset-key (kbd "C-x C-z")))
+;;; performance
 
-;;; Performance
+;; Improve display
+(setq display-raw-bytes-as-hex t
+      redisplay-skip-fontification-on-input t)
 
 ;; Increase how much is read from processes in a single chunk (default is 4kb).
 (setq read-process-output-max (* 4 1024 1024)
@@ -246,7 +231,7 @@
 (setq auto-save-visited-interval 10)
 (add-hook 'after-init-hook #'auto-save-visited-mode)
 
-;;; Scrolling
+;;; scrolling
 
 (setq scroll-up-aggressively 0.01
       scroll-down-aggressively 0.01)
@@ -475,7 +460,9 @@ ARG and REDISPLAY are identical to the original function."
 (setq which-key-idle-delay 10000)
 (setq which-key-idle-secondary-delay 0.05)
 
-;;; font
+(add-hook 'after-init-hook #'which-key-mode)
+
+;;; font & theme
 (defun font-installed-p (font-list)
   (catch 'font-found
     (dolist (font font-list)
@@ -512,16 +499,6 @@ ARG and REDISPLAY are identical to the original function."
                          face-font-rescale-alist nil nil #'equal)
               (cdr setting))))))
 
-(if (daemonp)
-    (add-hook 'server-after-make-frame-hook #'my/setup-font)
-  (add-hook 'after-init-hook #'my/setup-font))
-
-(defun my/fixed-pitch-setup ()
-  (interactive)
-  (setq buffer-face-mode-face '(:family "Sarasa Mono SC"))
-  (buffer-face-mode +1))
-
-;;; theme
 (setq modus-themes-fringes nil)
 
 (defun my/load-theme (f theme &optional no-confirm no-enable &rest args)
@@ -544,8 +521,16 @@ ARG and REDISPLAY are identical to the original function."
     (load-theme my/theme-tui t)))
 
 (if (daemonp)
-    (add-hook 'server-after-make-frame-hook #'my/setup-theme)
+    (progn
+      (add-hook 'server-after-make-frame-hook #'my/setup-font)
+      (add-hook 'server-after-make-frame-hook #'my/setup-theme))
+  (add-hook 'after-init-hook #'my/setup-font)
   (add-hook 'after-init-hook #'my/setup-theme))
+
+(defun my/fixed-pitch-setup ()
+  (interactive)
+  (setq buffer-face-mode-face '(:family "Sarasa Mono SC"))
+  (buffer-face-mode +1))
 
 ;;; useful funcs
 (defun my/url-get-title (url &optional descr)
